@@ -1,0 +1,6 @@
+# A namespace keeps all PrimeClone resources grouped together.
+# kubectl get all -n primeclone
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: primeclone

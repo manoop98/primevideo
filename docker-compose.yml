@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------
+#  LOCAL RUN (Step 1 for students, before Azure)
+#    docker compose up --build
+#    open http://localhost:8080
+# ---------------------------------------------------------------
+services:
+  mysql:
+    build: ./database
+    image: primeclone-mysql:local
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: primevideo
+      MYSQL_USER: primeuser
+      MYSQL_PASSWORD: primepass
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    image: primeclone-backend:local
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_USER: primeuser
+      DB_PASSWORD: primepass
+      DB_NAME: primevideo
+      JWT_SECRET: local-dev-secret
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build: ./frontend
+    image: primeclone-frontend:local
+    environment:
+      BACKEND_HOST: backend
+      BACKEND_PORT: 5000
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mysql_data:

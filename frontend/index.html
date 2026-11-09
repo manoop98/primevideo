@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrimeClone - Watch Movies & TV</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ===================== NAVBAR ===================== -->
+  <header class="navbar" id="navbar">
+    <div class="nav-left">
+      <a href="#" class="logo" data-view="home">prime<span>clone</span></a>
+      <nav class="nav-links">
+        <a href="#" data-view="home" class="active">Home</a>
+        <a href="#" data-view="movie">Movies</a>
+        <a href="#" data-view="series">TV Shows</a>
+        <a href="#" data-view="watchlist">My Stuff</a>
+      </nav>
+    </div>
+    <div class="nav-right">
+      <input type="search" id="searchInput" placeholder="Search titles, genres, languages" />
+      <button class="btn-ghost" id="userBtn">Sign in</button>
+    </div>
+  </header>
+
+  <!-- ===================== HERO ===================== -->
+  <section class="hero" id="hero">
+    <div class="hero-content">
+      <span class="badge">Included with Prime</span>
+      <h1 id="heroTitle">Loading...</h1>
+      <p class="hero-meta" id="heroMeta"></p>
+      <p class="hero-desc" id="heroDesc"></p>
+      <div class="hero-actions">
+        <button class="btn-primary" id="heroPlay">&#9654; Play</button>
+        <button class="btn-round" id="heroAdd" title="Add to Watchlist">+</button>
+        <button class="btn-round" id="heroInfo" title="Details">i</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== CONTENT ROWS ===================== -->
+  <main id="rows"></main>
+
+  <!-- ===================== STATUS BAR (for students) ===================== -->
+  <footer class="footer">
+    <div>PrimeClone &middot; DevOps teaching project (Frontend &rarr; Backend &rarr; MySQL on AKS)</div>
+    <div id="apiStatus" class="api-status">Checking API...</div>
+  </footer>
+
+  <!-- ===================== DETAILS MODAL ===================== -->
+  <div class="modal" id="detailModal">
+    <div class="modal-box detail">
+      <button class="modal-close" data-close>&times;</button>
+      <div class="detail-banner" id="detailBanner"><h2 id="detailTitle"></h2></div>
+      <div class="detail-body">
+        <p class="hero-meta" id="detailMeta"></p>
+        <p id="detailDesc"></p>
+        <div class="hero-actions">
+          <button class="btn-primary" id="detailPlay">&#9654; Play</button>
+          <button class="btn-ghost" id="detailWatchlist">+ Watchlist</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== AUTH MODAL ===================== -->
+  <div class="modal" id="authModal">
+    <div class="modal-box auth">
+      <button class="modal-close" data-close>&times;</button>
+      <h2 id="authTitle">Sign in</h2>
+      <form id="authForm">
+        <input type="text" id="authName" placeholder="Your name" class="hidden" />
+        <input type="email" id="authEmail" placeholder="Email" required />
+        <input type="password" id="authPassword" placeholder="Password (min 6 chars)" required />
+        <p class="error" id="authError"></p>
+        <button class="btn-primary full" type="submit" id="authSubmit">Sign in</button>
+      </form>
+      <p class="switch">
+        <span id="authSwitchText">New to PrimeClone?</span>
+        <a href="#" id="authSwitch">Create an account</a>
+      </p>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

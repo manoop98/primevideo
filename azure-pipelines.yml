@@ -1,0 +1,160 @@
+# ==================================================================
+#  PrimeClone CI/CD  -  Azure DevOps
+#
+#   git push (main)
+#        |
+#   [Stage 1: Build]  docker build -> docker push  (3 images -> ACR)
+#        |
+#   [Stage 2: Deploy] replace tokens in k8s/*.yaml -> kubectl apply -> AKS
+#
+#  Before the first run, create (see README "Part 3"):
+#   - Service connection "acr-connection"  (Docker Registry -> ACR)
+#   - Service connection "aks-connection"  (Kubernetes -> AKS)
+#   - Secret pipeline variables: MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD, JWT_SECRET
+# ==================================================================
+
+trigger:
+  branches:
+    include:
+      - main
+
+variables:
+  # ---- change these 2 lines to match YOUR Azure resources ----
+  acrLoginServer: 'primecloneacr.azurecr.io'
+  # ------------------------------------------------------------
+  dockerRegistryServiceConnection: 'acr-connection'
+  kubernetesServiceConnection: 'aks-connection'
+  imageTag: '$(Build.BuildId)'          # every run = unique image tag
+  vmImageName: 'ubuntu-latest'
+
+stages:
+# ------------------------------------------------------------------
+#  STAGE 1 - CI: build the 3 Docker images and push them to ACR
+# ------------------------------------------------------------------
+- stage: Build
+  displayName: 'Build & Push Docker images'
+  jobs:
+  - job: BuildImages
+    displayName: 'docker build + docker push'
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - checkout: self
+
+    - task: Docker@2
+      displayName: 'Frontend image'
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'primeclone-frontend'
+        dockerfile: 'frontend/Dockerfile'
+        buildContext: 'frontend'
+        tags: |
+          $(imageTag)
+          latest
+
+    - task: Docker@2
+      displayName: 'Backend image'
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'primeclone-backend'
+        dockerfile: 'backend/Dockerfile'
+        buildContext: 'backend'
+        tags: |
+          $(imageTag)
+          latest
+
+    - task: Docker@2
+      displayName: 'MySQL image (schema + seed data)'
+      inputs:
+        command: buildAndPush
+        containerRegistry: $(dockerRegistryServiceConnection)
+        repository: 'primeclone-mysql'
+        dockerfile: 'database/Dockerfile'
+        buildContext: 'database'
+        tags: |
+          $(imageTag)
+          latest
+
+    # Hand the k8s YAML files to the Deploy stage
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish k8s manifests'
+      inputs:
+        targetPath: 'k8s'
+        artifact: 'manifests'
+
+# ------------------------------------------------------------------
+#  STAGE 2 - CD: deploy to AKS
+# ------------------------------------------------------------------
+- stage: Deploy
+  displayName: 'Deploy to AKS'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployAKS
+    displayName: 'kubectl apply'
+    pool:
+      vmImage: $(vmImageName)
+    environment: 'primeclone-aks'       # created automatically; add approvals here later
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: manifests
+
+          # Put the real image registry/tag + secrets into the YAML files
+          - bash: |
+              set -e
+              cd $(Pipeline.Workspace)/manifests
+              sed -i "s|__ACR_LOGIN_SERVER__|$(acrLoginServer)|g; s|__IMAGE_TAG__|$(imageTag)|g" *.yaml
+              sed -i "s|__MYSQL_ROOT_PASSWORD__|${MYSQL_ROOT_PASSWORD}|g; s|__MYSQL_PASSWORD__|${MYSQL_PASSWORD}|g; s|__JWT_SECRET__|${JWT_SECRET}|g" 01-secrets.yaml
+              echo "Images that will be deployed:"
+              grep -h "image:" *.yaml
+            displayName: 'Replace tokens in manifests'
+            env:                                   # secret vars must be mapped explicitly
+              MYSQL_ROOT_PASSWORD: $(MYSQL_ROOT_PASSWORD)
+              MYSQL_PASSWORD: $(MYSQL_PASSWORD)
+              JWT_SECRET: $(JWT_SECRET)
+
+          - task: Kubernetes@1
+            displayName: 'kubectl apply -f k8s/'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceConnection)
+              command: apply
+              useConfigurationFile: true
+              configuration: '$(Pipeline.Workspace)/manifests'
+
+          - task: Kubernetes@1
+            displayName: 'Wait for MySQL'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceConnection)
+              command: rollout
+              arguments: 'status statefulset/mysql -n primeclone --timeout=300s'
+
+          - task: Kubernetes@1
+            displayName: 'Wait for backend'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceConnection)
+              command: rollout
+              arguments: 'status deployment/backend -n primeclone --timeout=300s'
+
+          - task: Kubernetes@1
+            displayName: 'Wait for frontend'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceConnection)
+              command: rollout
+              arguments: 'status deployment/frontend -n primeclone --timeout=180s'
+
+          - task: Kubernetes@1
+            displayName: 'Show public IP of the website'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              kubernetesServiceEndpoint: $(kubernetesServiceConnection)
+              command: get
+              arguments: 'svc frontend -n primeclone -o wide'

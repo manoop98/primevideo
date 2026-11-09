@@ -1,0 +1,16 @@
+# ---------------------------------------------------------------
+#  ConfigMap: NON-secret settings shared by backend and MySQL.
+#  Change a value here -> re-apply -> restart pods. No image rebuild.
+# ---------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: primeclone-config
+  namespace: primeclone
+data:
+  DB_HOST: "mysql"          # = name of the MySQL Service (k8s DNS)
+  DB_PORT: "3306"
+  DB_NAME: "primevideo"
+  DB_USER: "primeuser"
+  BACKEND_HOST: "backend"   # = name of the backend Service
+  BACKEND_PORT: "5000"

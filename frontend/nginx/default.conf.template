@@ -1,0 +1,37 @@
+# ---------------------------------------------------------------
+#  nginx does TWO jobs here:
+#   1. Serve the static website (HTML/CSS/JS)
+#   2. Act as a REVERSE PROXY: /api/*  ->  backend service
+#
+#  ${BACKEND_HOST} and ${BACKEND_PORT} are filled in at container
+#  start by the official nginx image (envsubst on *.template files).
+#  docker-compose: BACKEND_HOST=backend  (compose service name)
+#  Kubernetes:     BACKEND_HOST=backend  (k8s Service name)
+# ---------------------------------------------------------------
+server {
+    listen 80;
+    server_name _;
+
+    root  /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass         http://${BACKEND_HOST}:${BACKEND_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    30s;
+    }
+
+    # Lightweight health endpoint for the frontend's own k8s probes
+    location = /healthz {
+        access_log off;
+        return 200 "ok\n";
+    }
+}
